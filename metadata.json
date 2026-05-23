@@ -1,0 +1,6 @@
+{
+  "name": "Omni AI Hub",
+  "description": "Multi-platform AI aggregator to compare ChatGPT, Gemini, Claude, and Perplexity in one interface.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
