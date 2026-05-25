@@ -65,6 +65,17 @@ object WebViewManager {
                 addJavascriptInterface(jsInterface, "AndroidBridge")
 
                 webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        if (url != null && view != null) {
+                            if (url.contains("accounts.google.com") || url.contains("google.com/accounts")) {
+                                view.settings.userAgentString = "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                            } else {
+                                view.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            }
+                        }
+                    }
+
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         // Inject observer script when page finishes loading
@@ -108,6 +119,25 @@ object WebViewManager {
                                 javaScriptCanOpenWindowsAutomatically = true
                                 setSupportMultipleWindows(true)
                                 userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            }
+                            
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                            
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    super.onPageStarted(view, url, favicon)
+                                    if (url != null && view != null) {
+                                        if (url.contains("accounts.google.com") || url.contains("google.com/accounts")) {
+                                            view.settings.userAgentString = "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                                        } else {
+                                            view.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                                        }
+                                    }
+                                }
+                                
+                                override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                                    return false // Load redirected sub-URLs inside the dialog/popup WebView itself
+                                }
                             }
                             
                             val container = android.widget.FrameLayout(activeContext)

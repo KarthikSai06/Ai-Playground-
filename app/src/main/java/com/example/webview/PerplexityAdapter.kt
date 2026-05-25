@@ -7,12 +7,35 @@ class PerplexityAdapter : AiAdapter {
         val safePrompt = prompt.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
         return """
             (function(promptText) {
-                try {
-                    let textarea = document.querySelector('textarea') || 
-                                   document.querySelector('[contenteditable="true"]') || 
-                                   document.querySelector('input[type="text"]');
+                let attempts = 0;
+                const maxAttempts = 20; // Retry for up to 2 seconds
+                
+                function findMainInput() {
+                    let inputs = Array.from(document.querySelectorAll('textarea, [contenteditable="true"], input[type="text"]'));
+                    let visibleInputs = inputs.filter(el => {
+                        let style = window.getComputedStyle(el);
+                        return el.offsetWidth > 0 && el.offsetHeight > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                    });
+                    if (visibleInputs.length === 0) {
+                        visibleInputs = inputs;
+                    }
+                    let bestMatch = visibleInputs.find(el => {
+                        let ph = (el.getAttribute('placeholder') || '').toLowerCase();
+                        let text = el.tagName === 'DIV' ? (el.getAttribute('aria-placeholder') || '').toLowerCase() : '';
+                        return ph.includes('ask') || ph.includes('anything') || ph.includes('question') || ph.includes('search') || ph.includes('query') || text.includes('ask') || text.includes('anything');
+                    });
+                    if (bestMatch) return bestMatch;
+                    let textarea = visibleInputs.find(el => el.tagName === 'TEXTAREA' || el.getAttribute('contenteditable') === 'true');
+                    if (textarea) return textarea;
+                    return visibleInputs[0];
+                }
+
+                function tryInject() {
+                    attempts++;
+                    let textarea = findMainInput();
                     if (textarea) {
                         textarea.focus();
+                        textarea.click();
                         
                         // Try standard execCommand first (highly compatible with React/Next state tracking)
                         try {
@@ -80,10 +103,12 @@ class PerplexityAdapter : AiAdapter {
                                 textarea.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
                             }
                         }, 500);
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(tryInject, 100);
                     }
-                } catch (e) {
-                    console.error("AIHub Injection Error:", e);
                 }
+
+                tryInject();
             })(`$safePrompt`);
         """.trimIndent()
     }
