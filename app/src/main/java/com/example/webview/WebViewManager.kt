@@ -30,13 +30,12 @@ object WebViewManager {
 
     fun getWebView(context: Context, platform: AiPlatform): WebView {
         currentActivityContext = context
-        val appContext = context.applicationContext
         
         // Enable third party cookies for logins (some sites need this if they use OAuth)
         CookieManager.getInstance().setAcceptCookie(true)
 
         return webViews.getOrPut(platform) {
-            WebView(appContext).apply {
+            WebView(context).apply {
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true

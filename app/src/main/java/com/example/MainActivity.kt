@@ -26,12 +26,13 @@ class MainActivity : ComponentActivity() {
         
         // Use singleton WebViewManager
         WebViewManager.currentActivityContext = this
-        val viewModel = MainViewModel(repo) // Updated constructor
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val viewModel = MainViewModel(repo, prefs)
 
         setContent {
             AIHubTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(viewModel) // Updated call
+                    MainScreen(viewModel)
                 }
             }
         }

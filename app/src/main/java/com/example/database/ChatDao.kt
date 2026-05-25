@@ -23,6 +23,9 @@ interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessage): Long
 
+    @Query("UPDATE chat_messages SET response = :response WHERE sessionId = :sessionId AND platform = :platform")
+    suspend fun updateMessageResponse(sessionId: Long, platform: String, response: String)
+
     @Query("DELETE FROM chat_sessions")
     suspend fun clearHistory()
 }

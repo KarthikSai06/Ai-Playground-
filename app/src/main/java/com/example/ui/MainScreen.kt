@@ -45,9 +45,15 @@ fun MainScreen(
         showSplash = false
     }
 
+    val state by viewModel.uiState.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (!showSplash) {
-            AppContent(viewModel)
+            if (state.showWelcomeScreen) {
+                WelcomeScreen(viewModel)
+            } else {
+                AppContent(viewModel)
+            }
         }
 
         AnimatedVisibility(
@@ -287,12 +293,18 @@ fun HomeTab(viewModel: MainViewModel) {
         )
         
         Button(
-            onClick = { viewModel.sendPrompt() },
+            onClick = { if (!state.isGenerating) viewModel.sendPrompt() },
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
-            Text("Send Prompt")
+            if (state.isGenerating) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Synthesizing...")
+            } else {
+                Text("Send Prompt")
+            }
         }
 
         // Responses Recap underneath
@@ -414,16 +426,17 @@ fun EnginesTab(viewModel: MainViewModel, selectedTab: String, isVisible: Boolean
             LaunchedEffect(Unit) {
                 AiPlatform.values().forEach { platform ->
                     if (!loadedPlatforms.contains(platform)) {
-                        delay(200)
+                        delay(1500)
                         loadedPlatforms.add(platform)
                     }
                 }
             }
             
             AiPlatform.values().forEach { platform ->
-                val isPlatformSelected = selectedTab == platform.title
-                if (loadedPlatforms.contains(platform)) {
-                    AndroidView(
+                key(platform.name) {
+                    val isPlatformSelected = selectedTab == platform.title
+                    if (loadedPlatforms.contains(platform)) {
+                        AndroidView(
                         factory = { context ->
                             FrameLayout(context).apply {
                                 val wv = WebViewManager.getWebView(context, platform)
@@ -438,6 +451,7 @@ fun EnginesTab(viewModel: MainViewModel, selectedTab: String, isVisible: Boolean
                             .fillMaxSize()
                             .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
                     )
+                }
                 }
             }
         }
@@ -520,6 +534,8 @@ fun ProfileTab(viewModel: MainViewModel) {
 @Composable
 fun HistoryTab(viewModel: MainViewModel) {
     val sessions by viewModel.chatSessions.collectAsState(initial = emptyList())
+    val state by viewModel.uiState.collectAsState()
+    val messages by viewModel.selectedHistoryMessages.collectAsState(initial = emptyList())
     
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 24.dp).systemBarsPadding()) {
         Text("ARCHIVE", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -528,14 +544,46 @@ fun HistoryTab(viewModel: MainViewModel) {
         
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(sessions) { session ->
+                val isExpanded = state.selectedHistorySessionId == session.id
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable { 
+                        viewModel.selectHistorySession(if (isExpanded) null else session.id) 
+                    },
+                    colors = CardDefaults.cardColors(containerColor = if (isExpanded) MaterialTheme.colorScheme.surfaceVariant else Color.White),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(session.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(session.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = if (isExpanded) 10 else 1, overflow = TextOverflow.Ellipsis)
                         Text(android.text.format.DateFormat.format("MMM dd, yyyy - HH:mm", session.timestamp).toString(), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        
+                        if (isExpanded) {
+                            Spacer(Modifier.height(12.dp))
+                            Divider(color = MaterialTheme.colorScheme.outline)
+                            Spacer(Modifier.height(12.dp))
+                            
+                            messages.forEach { msg ->
+                                val platform = AiPlatform.fromString(msg.platform)
+                                if (platform != null) {
+                                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                                        Box(
+                                            modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(platform.brandColor.copy(0.2f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(platform.title.take(2).uppercase(), color = platform.brandColor, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Column {
+                                            Text(platform.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(if (msg.response.isBlank()) "No response recorded" else msg.response, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                    }
+                                }
+                            }
+                            if (messages.isEmpty()) {
+                                Text("Loading details...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
             }
@@ -648,5 +696,77 @@ fun SettingsTab(
         // Removed scoring engine block
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun WelcomeScreen(viewModel: MainViewModel) {
+    val state by viewModel.uiState.collectAsState()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF7F5F0))
+            .systemBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Welcome to Omni AI", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(8.dp))
+        Text("Please set up your profile", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        
+        Spacer(Modifier.height(48.dp))
+        
+        OutlinedTextField(
+            value = state.userName,
+            onValueChange = { viewModel.updateUserName(it) },
+            label = { Text("Your Name") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = state.userAge,
+            onValueChange = { viewModel.updateUserAge(it) },
+            label = { Text("Your Age") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+        
+        Spacer(Modifier.height(32.dp))
+        
+        Text("Select Preferred AIs", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.Start))
+        Spacer(Modifier.height(16.dp))
+        
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(AiPlatform.values()) { platform ->
+                val isActive = state.activePlatforms.contains(platform)
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable { viewModel.togglePlatformActive(platform) },
+                    colors = CardDefaults.cardColors(containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(0.3f) else Color.White),
+                    border = BorderStroke(1.dp, if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = isActive, onCheckedChange = { viewModel.togglePlatformActive(platform) })
+                        Spacer(Modifier.width(12.dp))
+                        Text(platform.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    }
+                }
+            }
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        
+        Button(
+            onClick = { viewModel.completeOnboarding() },
+            enabled = state.userName.isNotBlank() && state.activePlatforms.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text("Get Started", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }

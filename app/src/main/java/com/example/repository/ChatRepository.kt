@@ -27,6 +27,10 @@ class ChatRepository(private val chatDao: ChatDao) {
         )
     }
 
+    suspend fun updateMessageResponse(sessionId: Long, platform: String, response: String) {
+        chatDao.updateMessageResponse(sessionId, platform, response)
+    }
+
     suspend fun clearHistory() {
         chatDao.clearHistory()
     }
