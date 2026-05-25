@@ -34,4 +34,15 @@ class ChatRepository(private val chatDao: ChatDao) {
     suspend fun clearHistory() {
         chatDao.clearHistory()
     }
+
+    suspend fun clearAll() {
+        chatDao.clearHistory()
+        // could clear chat_messages as well, but cascade delete might do it. For safety:
+        // Or leave it. we will add deleteSession.
+    }
+
+    suspend fun deleteSession(sessionId: Long) {
+        chatDao.deleteSession(sessionId)
+        chatDao.deleteMessagesForSession(sessionId)
+    }
 }

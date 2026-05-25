@@ -1,5 +1,13 @@
 package com.example.ui
 
+import android.app.Activity
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.animation.*
@@ -18,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -29,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.viewmodel.MainViewModel
+import com.example.viewmodel.UiState
 import com.example.webview.AiPlatform
 import com.example.webview.WebViewManager
 import kotlinx.coroutines.delay
@@ -68,57 +78,106 @@ fun MainScreen(
 
 @Composable
 fun SplashUI() {
-    val infiniteTransition = rememberInfiniteTransition()
-    val spin by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing))
-    )
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse)
-    )
+    val spin = remember { Animatable(0f) }
+    val mergePhase = remember { Animatable(0f) }
+    val iconScale = remember { Animatable(0f) }
+    val textAlpha = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        launch {
+            spin.animateTo(
+                targetValue = 1080f,
+                animationSpec = tween(1500, easing = EaseInOutCubic)
+            )
+        }
+        launch {
+            delay(1100)
+            mergePhase.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(400, easing = EaseInCubic)
+            )
+            iconScale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+            textAlpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(400, easing = LinearEasing)
+            )
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0E0C)),
+            .background(Color(0xFFF7F5F0)), // Light theme background
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Omni AI Hub",
-                fontSize = 48.sp,
-                color = Color(0xFFF7F5F0), // Paper
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-1.5).sp,
-                modifier = Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "ONE PROMPT · ALL MODELS · ONE TRUTH",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0x59F7F5F0),
-                letterSpacing = 2.sp
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AiPlatform.values().forEach {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(it.brandColor.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(it.title.take(2).uppercase(), color = it.brandColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        val centerOffset = 60.dp
+        val colors = listOf(
+            Color(0xFF00E5FF), // Cyan
+            Color(0xFFFF1744), // Red
+            Color(0xFFFFC107), // Yellow
+            Color(0xFF00E676)  // Green
+        )
+        
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.Center) {
+                // The emerging icon
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .scale(iconScale.value)
+                        .alpha(iconScale.value.coerceIn(0f, 1f))
+                        .clip(RoundedCornerShape(22.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = com.example.R.drawable.ic_launcher_background),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Image(
+                        painter = painterResource(id = com.example.R.drawable.ic_launcher_foreground),
+                        contentDescription = "App Icon",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // The spinning dots
+                if (iconScale.value < 0.2f) {
+                    for (i in 0 until 4) {
+                        val angle = Math.toRadians((spin.value + i * 90 - 90).toDouble())
+                        val distance = (1f - mergePhase.value) * centerOffset.value
+                        
+                        val offsetX = distance * kotlin.math.cos(angle).toFloat()
+                        val offsetY = distance * kotlin.math.sin(angle).toFloat()
+                        
+                        Box(
+                            modifier = Modifier
+                                .offset(offsetX.dp, offsetY.dp)
+                                .size(24.dp)
+                                .alpha((1f - iconScale.value * 5f).coerceIn(0f, 1f))
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(colors[i])
+                        )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(80.dp))
-            LinearProgressIndicator(color = Color(0x80F7F5F0), trackColor = Color(0x1AF7F5F0), modifier = Modifier.width(120.dp).height(2.dp))
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text(
+                "Omni AI Hub",
+                fontSize = 32.sp,
+                color = Color(0xFF0F0E0C),
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp,
+                modifier = Modifier.alpha(textAlpha.value.coerceIn(0f, 1f))
+            )
         }
     }
 }
@@ -138,41 +197,31 @@ fun AppContent(
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxSize().alpha(if (currentNavTab == 0) 1f else 0f)) {
-                if (currentNavTab == 0) HomeTab(viewModel)
-            }
-            Box(modifier = Modifier.fillMaxSize().alpha(if (currentNavTab == 1) 1f else 0f)) {
-                if (currentNavTab == 1) CompareTab(state.streamingResponses, state.activePlatforms)
-            }
-            Box(modifier = Modifier.fillMaxSize().alpha(if (currentNavTab == 2) 1f else 0f)) {
-                if (currentNavTab == 2) HistoryTab(viewModel)
-            }
-            Box(modifier = Modifier.fillMaxSize().alpha(if (currentNavTab == 3) 1f else 0f)) {
-                if (currentNavTab == 3) SettingsTab(
-                    userName = state.userName,
-                    onUserNameChange = { viewModel.updateUserName(it) },
-                    activePlatforms = state.activePlatforms,
-                    onTogglePlatform = { viewModel.togglePlatformActive(it) },
-                    onNavigateToBrowser = { 
-                        viewModel.onTabSelected(it.title)
-                        currentNavTab = 5 
-                    }
-                )
-            }
-            Box(modifier = Modifier.fillMaxSize().alpha(if (currentNavTab == 4) 1f else 0f)) {
-                if (currentNavTab == 4) ProfileTab(viewModel)
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(if (currentNavTab == 5) 1f else 0f)
-            ) {
-                EnginesTab(
-                    viewModel = viewModel,
-                    selectedTab = state.selectedTab,
-                    isVisible = currentNavTab == 5,
-                    onBack = { currentNavTab = 3 }
-                )
+            AnimatedContent(targetState = currentNavTab, label = "tabAnim", transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) }) { tab ->
+                when (tab) {
+                    0 -> HomeTab(viewModel)
+                    1 -> CompareTab(state.streamingResponses, state.activePlatforms)
+                    2 -> HistoryTab(viewModel)
+                    3 -> SettingsTab(
+                        userName = state.userName,
+                        onUserNameChange = { viewModel.updateUserName(it) },
+                        userEmail = state.userEmail,
+                        onUserEmailChange = { viewModel.updateUserEmail(it) },
+                        activePlatforms = state.activePlatforms,
+                        onTogglePlatform = { viewModel.togglePlatformActive(it) },
+                        onNavigateToBrowser = { 
+                            viewModel.onTabSelected(it.title)
+                            currentNavTab = 5 
+                        }
+                    )
+                    4 -> ProfileTab(viewModel)
+                    5 -> EnginesTab(
+                        viewModel = viewModel,
+                        selectedTab = state.selectedTab,
+                        isVisible = currentNavTab == 5,
+                        onBack = { currentNavTab = 3 }
+                    )
+                }
             }
         }
     }
@@ -215,6 +264,17 @@ fun BottomNavBar(currentIndex: Int, onSelect: (Int) -> Unit) {
 fun HomeTab(viewModel: MainViewModel) {
     val state by viewModel.uiState.collectAsState()
     
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
+            if (!spokenText.isNullOrEmpty()) {
+                viewModel.onPromptChange(state.promptInput + (if (state.promptInput.isEmpty()) "" else " ") + spokenText)
+            }
+        }
+    }
+    
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // Header
         Row(
@@ -223,8 +283,26 @@ fun HomeTab(viewModel: MainViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("AI Aggregator", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Hello ${state.userName}", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text("Omni AI Hub", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                
+                var helloText by remember { mutableStateOf("") }
+                val targetText = "Hello ${state.userName}"
+                LaunchedEffect(targetText) {
+                    helloText = ""
+                    for (i in targetText.indices) {
+                        delay(60)
+                        helloText = targetText.take(i + 1)
+                    }
+                }
+                val infiniteTransition = rememberInfiniteTransition()
+                val cursorAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0f, targetValue = 1f,
+                    animationSpec = infiniteRepeatable(animation = tween(500), repeatMode = RepeatMode.Reverse)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(helloText, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("|", fontSize = 28.sp, fontWeight = FontWeight.Light, modifier = Modifier.alpha(cursorAlpha))
+                }
             }
             Box(
                 modifier = Modifier
@@ -242,32 +320,20 @@ fun HomeTab(viewModel: MainViewModel) {
             Text("ACTIVE MODELS", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
+        val activePlatformsList = AiPlatform.values().toList()
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            AiPlatform.values().forEach { platform ->
-                val isActive = state.activePlatforms.contains(platform)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isActive) Color.White else Color.Transparent)
-                        .clickable { viewModel.togglePlatformActive(platform) }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(if (isActive) platform.brandColor.copy(alpha=0.2f) else MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(platform.title.take(2).uppercase(), color = if(isActive) platform.brandColor else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            for (i in activePlatformsList.indices step 2) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val p1 = activePlatformsList[i]
+                    Box(modifier = Modifier.weight(1f)) { ActiveModelBox(p1, state, viewModel) }
+                    if (i + 1 < activePlatformsList.size) {
+                        val p2 = activePlatformsList[i + 1]
+                        Box(modifier = Modifier.weight(1f)) { ActiveModelBox(p2, state, viewModel) }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(platform.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(if (isActive) "Ready to prompt" else "Disabled", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (isActive) Color(0xFF22C55E) else Color(0xFF9B9890)))
                 }
+                Spacer(Modifier.height(12.dp))
             }
         }
 
@@ -284,6 +350,23 @@ fun HomeTab(viewModel: MainViewModel) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).heightIn(min = 100.dp),
             placeholder = { Text("Type a prompt — sent to all active models simultaneously...") },
             shape = RoundedCornerShape(22.dp),
+            trailingIcon = {
+                val context = LocalContext.current
+                Icon(
+                    androidx.compose.material.icons.Icons.Default.Mic, 
+                    contentDescription = "Mic Input", 
+                    modifier = Modifier.padding(16.dp).clickable {
+                        try {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            }
+                            speechLauncher.launch(intent)
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            android.widget.Toast.makeText(context, "Speech recognition is not available on this device.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            },
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -309,8 +392,9 @@ fun HomeTab(viewModel: MainViewModel) {
 
         // Responses Recap underneath
         if (state.streamingResponses.isNotEmpty() && state.streamingResponses.values.any { it.isNotBlank() }) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("RESPONSES", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { viewModel.clearResponses() }) { Text("Clear All", fontSize = 12.sp) }
             }
             Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
                 state.activePlatforms.forEach { platform ->
@@ -343,6 +427,7 @@ fun HomeTab(viewModel: MainViewModel) {
 
 @Composable
 fun CompareTab(streamingResponses: Map<AiPlatform, String>, activePlatforms: Set<AiPlatform>) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp).systemBarsPadding(),
@@ -352,6 +437,16 @@ fun CompareTab(streamingResponses: Map<AiPlatform, String>, activePlatforms: Set
             Column {
                 Text("SIDE-BY-SIDE", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Compare", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            }
+            IconButton(onClick = {
+                val shareText = streamingResponses.entries.joinToString("\n\n") { "${it.key.title}:\n${it.value}" }
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, "Omni AI Hub Responses:\n\n$shareText")
+                }
+                context.startActivity(Intent.createChooser(intent, "Share Responses"))
+            }) {
+                Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share")
             }
         }
 
@@ -484,16 +579,7 @@ fun ProfileTab(viewModel: MainViewModel) {
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(state.userName, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Text("karthikkammala06@gmail.com", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF22C55E)))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Pro · Active", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                }
+                Text(state.userEmail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         
@@ -531,6 +617,7 @@ fun ProfileTab(viewModel: MainViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryTab(viewModel: MainViewModel) {
     val sessions by viewModel.chatSessions.collectAsState(initial = emptyList())
@@ -538,54 +625,81 @@ fun HistoryTab(viewModel: MainViewModel) {
     val messages by viewModel.selectedHistoryMessages.collectAsState(initial = emptyList())
     
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 24.dp).systemBarsPadding()) {
-        Text("ARCHIVE", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("History", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text("ARCHIVE", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("History", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            }
+            if (sessions.isNotEmpty()) {
+                TextButton(onClick = { viewModel.clearHistory() }) {
+                    Text("Clear All", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
         Spacer(Modifier.height(16.dp))
         
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(sessions) { session ->
-                val isExpanded = state.selectedHistorySessionId == session.id
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable { 
-                        viewModel.selectHistorySession(if (isExpanded) null else session.id) 
+            items(sessions, key = { it.id }) { session ->
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = {
+                        if (it == SwipeToDismissBoxValue.EndToStart || it == SwipeToDismissBoxValue.StartToEnd) {
+                            viewModel.deleteHistorySession(session.id)
+                            true
+                        } else false
+                    }
+                )
+                SwipeToDismissBox(
+                    state = dismissState,
+                    backgroundContent = {
+                        Box(Modifier.fillMaxSize().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.error).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                        }
                     },
-                    colors = CardDefaults.cardColors(containerColor = if (isExpanded) MaterialTheme.colorScheme.surfaceVariant else Color.White),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(session.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = if (isExpanded) 10 else 1, overflow = TextOverflow.Ellipsis)
-                        Text(android.text.format.DateFormat.format("MMM dd, yyyy - HH:mm", session.timestamp).toString(), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        
-                        if (isExpanded) {
-                            Spacer(Modifier.height(12.dp))
-                            Divider(color = MaterialTheme.colorScheme.outline)
-                            Spacer(Modifier.height(12.dp))
-                            
-                            messages.forEach { msg ->
-                                val platform = AiPlatform.fromString(msg.platform)
-                                if (platform != null) {
-                                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                                        Box(
-                                            modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(platform.brandColor.copy(0.2f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(platform.title.take(2).uppercase(), color = platform.brandColor, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                    content = {
+                        val isExpanded = state.selectedHistorySessionId == session.id
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable { 
+                                viewModel.selectHistorySession(if (isExpanded) null else session.id) 
+                            },
+                            colors = CardDefaults.cardColors(containerColor = if (isExpanded) MaterialTheme.colorScheme.surfaceVariant else Color.White),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(session.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = if (isExpanded) 10 else 1, overflow = TextOverflow.Ellipsis)
+                                Text(android.text.format.DateFormat.format("MMM dd, yyyy - HH:mm", session.timestamp).toString(), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                
+                                if (isExpanded) {
+                                    Spacer(Modifier.height(12.dp))
+                                    Divider(color = MaterialTheme.colorScheme.outline)
+                                    Spacer(Modifier.height(12.dp))
+                                    
+                                    messages.forEach { msg ->
+                                        val platform = AiPlatform.fromString(msg.platform)
+                                        if (platform != null) {
+                                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                                                Box(
+                                                    modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(platform.brandColor.copy(0.2f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(platform.title.take(2).uppercase(), color = platform.brandColor, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                                }
+                                                Spacer(Modifier.width(8.dp))
+                                                Column {
+                                                    Text(platform.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(if (msg.response.isBlank()) "No response recorded" else msg.response, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                }
+                                            }
                                         }
-                                        Spacer(Modifier.width(8.dp))
-                                        Column {
-                                            Text(platform.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            Spacer(Modifier.height(4.dp))
-                                            Text(if (msg.response.isBlank()) "No response recorded" else msg.response, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurface)
-                                        }
+                                    }
+                                    if (messages.isEmpty()) {
+                                        Text("Loading details...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
-                            if (messages.isEmpty()) {
-                                Text("Loading details...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
                         }
                     }
-                }
+                )
             }
             if (sessions.isEmpty()) {
                 item {
@@ -600,6 +714,8 @@ fun HistoryTab(viewModel: MainViewModel) {
 fun SettingsTab(
     userName: String,
     onUserNameChange: (String) -> Unit,
+    userEmail: String,
+    onUserEmailChange: (String) -> Unit,
     activePlatforms: Set<AiPlatform>,
     onTogglePlatform: (AiPlatform) -> Unit,
     onNavigateToBrowser: (AiPlatform) -> Unit
@@ -613,6 +729,16 @@ fun SettingsTab(
             value = userName,
             onValueChange = onUserNameChange,
             label = { Text("Your Name") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = userEmail,
+            onValueChange = onUserEmailChange,
+            label = { Text("Your Email") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
@@ -700,6 +826,53 @@ fun SettingsTab(
 }
 
 @Composable
+fun ActiveModelBox(platform: AiPlatform, state: UiState, viewModel: MainViewModel) {
+    val isActive = state.activePlatforms.contains(platform)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isActive) Color.White else Color.Transparent)
+            .clickable { viewModel.togglePlatformActive(platform) }
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (isActive) platform.brandColor.copy(alpha=0.2f) else MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(platform.title.take(2).uppercase(), color = if(isActive) platform.brandColor else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(platform.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(if (isActive) "Ready" else "Disabled", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (isActive) Color(0xFF22C55E) else Color(0xFF9B9890)))
+    }
+}
+
+@Composable
+fun SetupModelBox(platform: AiPlatform, state: UiState, viewModel: MainViewModel) {
+    val isActive = state.activePlatforms.contains(platform)
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { viewModel.togglePlatformActive(platform) },
+        colors = CardDefaults.cardColors(containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(0.3f) else Color.White),
+        border = BorderStroke(1.dp, if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (isActive) platform.brandColor.copy(0.2f) else MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(platform.title.take(2).uppercase(), color = if (isActive) platform.brandColor else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(platform.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
 fun WelcomeScreen(viewModel: MainViewModel) {
     val state by viewModel.uiState.collectAsState()
     
@@ -736,25 +909,35 @@ fun WelcomeScreen(viewModel: MainViewModel) {
             shape = RoundedCornerShape(12.dp)
         )
         
+        Spacer(Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = state.userEmail,
+            onValueChange = { viewModel.updateUserEmail(it) },
+            label = { Text("Your Email") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+        
         Spacer(Modifier.height(32.dp))
         
         Text("Select Preferred AIs", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.Start))
         Spacer(Modifier.height(16.dp))
         
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(AiPlatform.values()) { platform ->
-                val isActive = state.activePlatforms.contains(platform)
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable { viewModel.togglePlatformActive(platform) },
-                    colors = CardDefaults.cardColors(containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(0.3f) else Color.White),
-                    border = BorderStroke(1.dp, if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
-                ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = isActive, onCheckedChange = { viewModel.togglePlatformActive(platform) })
-                        Spacer(Modifier.width(12.dp))
-                        Text(platform.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        val platforms = AiPlatform.values().toList()
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            for (i in platforms.indices step 2) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val p1 = platforms[i]
+                    Box(modifier = Modifier.weight(1f)) { SetupModelBox(p1, state, viewModel) }
+                    if (i + 1 < platforms.size) {
+                        val p2 = platforms[i + 1]
+                        Box(modifier = Modifier.weight(1f)) { SetupModelBox(p2, state, viewModel) }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
+                Spacer(Modifier.height(8.dp))
             }
         }
         

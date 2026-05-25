@@ -29,6 +29,7 @@ data class UiState(
     val activePlatforms: Set<AiPlatform> = AiPlatform.values().toSet(),
     val userName: String = "",
     val userAge: String = "",
+    val userEmail: String = "",
     val isGenerating: Boolean = false,
     val selectedHistorySessionId: Long? = null
 )
@@ -64,6 +65,7 @@ class MainViewModel(
         val isFirstTime = prefs.getBoolean("isFirstTime", true)
         val savedName = prefs.getString("userName", "") ?: ""
         val savedAge = prefs.getString("userAge", "") ?: ""
+        val savedEmail = prefs.getString("userEmail", "") ?: ""
         val savedPlatformsStr = prefs.getStringSet("activePlatforms", null)
         
         val loadedActivePlatforms = if (savedPlatformsStr != null) {
@@ -76,6 +78,7 @@ class MainViewModel(
             showWelcomeScreen = isFirstTime,
             userName = savedName,
             userAge = savedAge,
+            userEmail = savedEmail,
             activePlatforms = loadedActivePlatforms
         ) }
 
@@ -115,12 +118,35 @@ class MainViewModel(
 
     fun updateUserName(name: String) {
         _uiState.update { it.copy(userName = name) }
+        prefs.edit().putString("userName", name).apply()
     }
 
     fun updateUserAge(age: String) {
         _uiState.update { it.copy(userAge = age) }
+        prefs.edit().putString("userAge", age).apply()
     }
     
+    fun updateUserEmail(email: String) {
+        _uiState.update { it.copy(userEmail = email) }
+        prefs.edit().putString("userEmail", email).apply()
+    }
+
+    fun clearResponses() {
+        _uiState.update { it.copy(streamingResponses = emptyMap(), promptInput = "") }
+    }
+    
+    fun clearHistory() {
+        viewModelScope.launch {
+            chatRepository.clearAll()
+        }
+    }
+    
+    fun deleteHistorySession(id: Long) {
+        viewModelScope.launch {
+            chatRepository.deleteSession(id)
+        }
+    }
+
     fun completeOnboarding() {
         _uiState.update { it.copy(showWelcomeScreen = false) }
         val state = _uiState.value
@@ -128,6 +154,7 @@ class MainViewModel(
             .putBoolean("isFirstTime", false)
             .putString("userName", state.userName)
             .putString("userAge", state.userAge)
+            .putString("userEmail", state.userEmail)
             .putStringSet("activePlatforms", state.activePlatforms.map { it.name }.toSet())
             .apply()
     }
@@ -144,6 +171,7 @@ class MainViewModel(
         _uiState.update { state ->
             val set = state.activePlatforms.toMutableSet()
             if (set.contains(platform)) set.remove(platform) else set.add(platform)
+            prefs.edit().putStringSet("activePlatforms", set.map { it.name }.toSet()).apply()
             state.copy(activePlatforms = set)
         }
     }
