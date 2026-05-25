@@ -19,6 +19,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val display = windowManager.defaultDisplay
+            val modes = display.supportedModes
+            val maxMode = modes.maxByOrNull { it.refreshRate }
+            if (maxMode != null) {
+                window.attributes = window.attributes.apply {
+                    preferredDisplayModeId = maxMode.modeId
+                }
+            }
+        }
+        
         enableEdgeToEdge()
 
         val db = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "aihub-db").build()

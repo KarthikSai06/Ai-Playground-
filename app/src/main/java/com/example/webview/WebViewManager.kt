@@ -81,6 +81,12 @@ object WebViewManager {
                         adapters[platform]?.getObserverScript()?.let { script ->
                             evaluateJavascript(script, null)
                         }
+                        pendingPrompts[platform]?.let { prompt ->
+                            adapters[platform]?.getInjectPromptScript(prompt)?.let { script ->
+                                evaluateJavascript(script, null)
+                            }
+                            pendingPrompts.remove(platform)
+                        }
                     }
                     
                     override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
@@ -176,9 +182,17 @@ object WebViewManager {
         }
     }
 
+    private val pendingPrompts = mutableMapOf<AiPlatform, String>()
+
     fun sendPrompt(context: Context, platform: AiPlatform, prompt: String) {
         val adapter = adapters[platform] ?: return
         val webView = getWebView(context, platform)
+        
+        if (webView.progress < 100 || webView.url.isNullOrBlank()) {
+            pendingPrompts[platform] = prompt
+            return
+        }
+
         val script = adapter.getInjectPromptScript(prompt)
         webView.evaluateJavascript(script, null)
         

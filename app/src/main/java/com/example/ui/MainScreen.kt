@@ -189,6 +189,16 @@ fun AppContent(
 ) {
     val state by viewModel.uiState.collectAsState()
     var currentNavTab by remember { mutableStateOf(0) }
+    
+    val loadedPlatforms = remember { mutableStateListOf<AiPlatform>() }
+    LaunchedEffect(state.activePlatforms) {
+        state.activePlatforms.forEach { platform ->
+            if (!loadedPlatforms.contains(platform)) {
+                delay(1000)
+                loadedPlatforms.add(platform)
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -197,6 +207,32 @@ fun AppContent(
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            if (currentNavTab != 5) {
+                Box(modifier = Modifier.size(1.dp).alpha(0.01f)) {
+                    loadedPlatforms.forEach { platform ->
+                        if (state.activePlatforms.contains(platform)) {
+                            androidx.compose.ui.viewinterop.AndroidView(
+                                factory = { context ->
+                                    android.widget.FrameLayout(context).apply {
+                                        val wv = com.example.webview.WebViewManager.getWebView(context, platform)
+                                        (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                                        addView(wv)
+                                    }
+                                },
+                                update = { frame ->
+                                    val wv = com.example.webview.WebViewManager.getWebView(frame.context, platform)
+                                    if (wv.parent != frame) {
+                                        (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                                        frame.addView(wv)
+                                    }
+                                },
+                                modifier = Modifier.size(1.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             AnimatedContent(targetState = currentNavTab, label = "tabAnim", transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) }) { tab ->
                 when (tab) {
                     0 -> HomeTab(viewModel)
@@ -336,8 +372,8 @@ fun HomeTab(viewModel: MainViewModel) {
                 Spacer(Modifier.height(12.dp))
             }
         }
-
-        Divider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.outline)
+        
+        androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.outline)
 
         // Inject Prompt
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -396,7 +432,8 @@ fun HomeTab(viewModel: MainViewModel) {
                 Text("RESPONSES", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(onClick = { viewModel.clearResponses() }) { Text("Clear All", fontSize = 12.sp) }
             }
-            Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
+            
+            Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 80.dp)) {
                 state.activePlatforms.forEach { platform ->
                     val response = state.streamingResponses[platform]
                     if (!response.isNullOrEmpty()) {
@@ -421,6 +458,8 @@ fun HomeTab(viewModel: MainViewModel) {
                     }
                 }
             }
+        } else {
+            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 }
@@ -455,7 +494,7 @@ fun CompareTab(streamingResponses: Map<AiPlatform, String>, activePlatforms: Set
             return
         }
 
-        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp).padding(bottom = 80.dp)) {
             activePlatforms.forEach { platform ->
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
